@@ -92,6 +92,32 @@ pub enum Error {
     AudienceInvalid,
 }
 
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::SignatureExpired => "signature expired",
+            Error::SignatureInvalid => "signature invalid",
+            Error::JWTInvalid => "jwt invalid",
+            Error::IssuerInvalid => "invalid issuer",
+            Error::ExpirationInvalid => "invalid expiration",
+            Error::AudienceInvalid => "invalid audience",
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            Error::SignatureExpired => write!(f, "signature expired"),
+            Error::SignatureInvalid => write!(f, "signature invalid"),
+            Error::JWTInvalid => write!(f, "jwt invalid"),
+            Error::IssuerInvalid => write!(f, "invalid issuer"),
+            Error::ExpirationInvalid => write!(f, "invalid expiration"),
+            Error::AudienceInvalid => write!(f, "invalid audience"),
+        }
+    }
+}
+
 pub fn encode<T: ?Sized + AsRef<[u8]>>(header: Header, key: &T, payload: Payload) -> String {
     let signing_input = get_signing_input(payload, &header.alg);
     let kr = key.as_ref();

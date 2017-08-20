@@ -405,7 +405,7 @@ mod tests {
         match res {
             Ok((h2, p2)) => {
                 assert_eq!(h1.typ, h2.typ);
-                assert_eq!(h1.alg, h2.alg); //todo implement ==
+                assert_eq!(h1.alg, h2.alg);
                 for (k, v) in &p1 {
                     assert_eq!(true, p2.contains_key(k));
                     assert_eq!(v, p2.get(k).unwrap());

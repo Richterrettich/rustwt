@@ -113,17 +113,15 @@ pub enum Error {
 
 pub fn encode(header: Header, key: String, payload: Payload) -> String {
     let signing_input = get_signing_input(payload, &header.alg);
-    let signature = match header.alg {
+    let pkey = match header.alg {
         Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {
-            sign_hmac(&signing_input, key, header.alg)
+            PKey::hmac(key.as_bytes()).unwrap()
         }
-        Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => {
-            sign_rsa(&signing_input, key, header.alg)
-        }
-        Algorithm::ES256 | Algorithm::ES384 | Algorithm::ES512 => {
-            sign_es(&signing_input, key, header.alg)
-        }
+        Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => rsa_key(key),
+        Algorithm::ES256 | Algorithm::ES384 | Algorithm::ES512 => es_key(key),
     };
+    let signature = sign(&signing_input, pkey, header.alg.get_hash());
+
 
     format!("{}.{}", signing_input, signature)
 }
@@ -138,7 +136,6 @@ pub fn decode(
             if !verify_signature(algorithm, signing_input, &signature, key) {
                 return Err(Error::SignatureInvalid);
             }
-
             Ok((header, payload))
         }
 
@@ -162,29 +159,18 @@ fn get_signing_input(payload: Payload, algorithm: &Algorithm) -> String {
     format!("{}.{}", encoded_header, encoded_payload)
 }
 
-fn sign_hmac(data: &str, key: String, algorithm: Algorithm) -> String {
-    let hash = algorithm.get_hash();
-    let key = PKey::hmac(key.as_bytes()).unwrap();
-    sign(data, key, hash)
-}
 
-fn sign_rsa(data: &str, private_key_path: String, algorithm: Algorithm) -> String {
-    let hash = algorithm.get_hash();
-
+fn rsa_key(private_key_path: String) -> PKey {
     let buffer = read_pem(&private_key_path[..]);
     let rsa = Rsa::private_key_from_pem(&buffer).unwrap();
-    let key = PKey::from_rsa(rsa).unwrap();
-    sign(data, key, hash)
+    PKey::from_rsa(rsa).unwrap()
 }
 
-fn sign_es(data: &str, private_key_path: String, algorithm: Algorithm) -> String {
-    let hash = algorithm.get_hash();
+fn es_key(private_key_path: String) -> PKey {
     let raw_key = read_pem(&private_key_path[..]);
     let ec_key =
         EcKey::private_key_from_pem(&raw_key).expect("could not convert to EC private key");
-    let key = PKey::from_ec_key(ec_key).expect("could not convert EC private key");
-
-    sign(data, key, hash)
+    PKey::from_ec_key(ec_key).expect("could not convert EC private key")
 }
 
 fn sign(data: &str, private_key: PKey, digest: MessageDigest) -> String {

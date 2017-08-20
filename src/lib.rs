@@ -23,14 +23,15 @@
  *
  */
 
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
+extern crate serde_json;
 extern crate time;
 extern crate openssl;
+extern crate base64;
 
-use rustc_serialize::base64;
-use rustc_serialize::base64::{ToBase64, FromBase64};
-use rustc_serialize::json;
-use rustc_serialize::json::{ToJson, Json};
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -46,21 +47,22 @@ use openssl::ec::EcKey;
 
 pub type Payload = BTreeMap<String, String>;
 
+#[derive(Serialize, Deserialize)]
 pub struct Header {
-    algorithm: Algorithm,
-    ttype: String,
+    alg: Algorithm,
+    typ: String,
 }
 
 impl Header {
     pub fn new(alg: Algorithm) -> Header {
         Header {
-            algorithm: alg,
-            ttype: "JWT",
+            alg: alg,
+            typ: String::from("JWT"),
         }
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub enum Algorithm {
     HS256,
     HS384,
@@ -99,26 +101,26 @@ pub enum Error {
     AudienceInvalid,
 }
 
-impl ToJson for Header {
-    fn to_json(&self) -> json::Json {
-        let mut map = BTreeMap::new();
-        map.insert("typ".to_string(), self.ttype.to_json());
-        map.insert("alg".to_string(), self.algorithm.to_string().to_json());
-        Json::Object(map)
-    }
-}
+// impl ToJson for Header {
+//     fn to_json(&self) -> json::Json {
+//         let mut map = BTreeMap::new();
+//         map.insert("typ".to_string(), self.typ.to_json());
+//         map.insert("alg".to_string(), self.alg.to_string().to_json());
+//         Json::Object(map)
+//     }
+// }
 
 pub fn encode(header: Header, key: String, payload: Payload) -> String {
-    let signing_input = get_signing_input(payload, &header.algorithm);
-    let signature = match header.algorithm {
+    let signing_input = get_signing_input(payload, &header.alg);
+    let signature = match header.alg {
         Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {
-            sign_hmac(&signing_input, key, header.algorithm)
+            sign_hmac(&signing_input, key, header.alg)
         }
         Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => {
-            sign_rsa(&signing_input, key, header.algorithm)
+            sign_rsa(&signing_input, key, header.alg)
         }
         Algorithm::ES256 | Algorithm::ES384 | Algorithm::ES512 => {
-            sign_es(&signing_input, key, header.algorithm)
+            sign_es(&signing_input, key, header.alg)
         }
     };
 
@@ -149,11 +151,13 @@ fn segments_count() -> usize {
 
 fn get_signing_input(payload: Payload, algorithm: &Algorithm) -> String {
     let header = Header::new(*algorithm);
-    let header_json_str = header.to_json();
-    let encoded_header = base64_url_encode(header_json_str.to_string().as_bytes()).to_string();
-    let p = payload.into_iter().map(|(k, v)| (k, v.to_json())).collect();
-    let payload_json = Json::Object(p);
-    let encoded_payload = base64_url_encode(payload_json.to_string().as_bytes()).to_string();
+    let header_json_str =
+        serde_json::to_string(&header).expect("could not convert header to json.");
+    let encoded_header = base64::encode_config(header_json_str.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .to_string();
+    let payload_json = serde_json::to_string(&payload).expect("could not convert payload to json");
+    let encoded_payload = base64::encode_config(payload_json.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .to_string();
     format!("{}.{}", encoded_header, encoded_payload)
 }
 
@@ -169,7 +173,7 @@ fn sign_hmac(data: &str, key: String, algorithm: Algorithm) -> String {
     let mut signer = Signer::new(stp, &key).unwrap();
     signer.update(data.as_bytes()).unwrap();
     let hmac = signer.finish().unwrap();
-    base64_url_encode(&hmac)
+    base64::encode_config(&hmac, base64::URL_SAFE_NO_PAD)
 }
 
 fn sign_rsa(data: &str, private_key_path: String, algorithm: Algorithm) -> String {
@@ -205,7 +209,7 @@ fn sign(data: &str, private_key: PKey, digest: MessageDigest) -> String {
     let mut signer = Signer::new(digest, &private_key).unwrap();
     signer.update(data.as_bytes()).unwrap();
     let signature = signer.finish().unwrap();
-    base64_url_encode(&signature)
+    base64::encode_config(&signature, base64::URL_SAFE_NO_PAD)
 }
 
 fn read_pem(private_key_path: &str) -> Vec<u8> {
@@ -225,39 +229,25 @@ fn decode_segments(encoded_token: &str) -> Option<(Header, Payload, Vec<u8>, Str
     let payload_segment = raw_segments[1];
     let crypto_segment = raw_segments[2];
     let (header, payload) = decode_header_and_payload(header_segment, payload_segment);
-    let signature = &crypto_segment.as_bytes().from_base64().unwrap();
+    let signature = base64::decode_config(crypto_segment, base64::URL_SAFE_NO_PAD)
+        .expect("could not decoding base64 signature");
+    // let signature = &crypto_segment.as_bytes().from_base64().unwrap();
     let signing_input = format!("{}.{}", header_segment, payload_segment);
     Some((header, payload, signature.clone(), signing_input))
 }
 
-fn decode_header_and_payload<'a>(header_segment: &str, payload_segment: &str) -> (Header, Payload) {
-    fn base64_to_json(input: &str) -> Json {
-        let bytes = input.as_bytes().from_base64().unwrap();
-        let s = str::from_utf8(&bytes).unwrap();
-        Json::from_str(s).unwrap()
-    };
 
-    let header_json = base64_to_json(header_segment);
-    let header_tree = json_to_tree(header_json);
-    let alg = header_tree.get("alg").unwrap();
-    let header = Header::new(parse_algorithm(alg));
-    let payload_json = base64_to_json(payload_segment);
-    let payload = json_to_tree(payload_json);
+
+fn decode_header_and_payload(header_segment: &str, payload_segment: &str) -> (Header, Payload) {
+    let headder_bytes = base64::decode(header_segment).expect("could not decoding base64 header");
+    let header: Header =
+        serde_json::from_slice(&headder_bytes[..]).expect("could not convert header to json");
+
+
+    let payload_bytes = base64::decode(payload_segment).expect("could not decoding base64 payload");
+    let payload: Payload =
+        serde_json::from_slice(&payload_bytes[..]).expect("could not convert header to json");
     (header, payload)
-}
-
-//todo - move to Algorithm
-fn parse_algorithm(alg: &str) -> Algorithm {
-    match alg {
-        "HS256" => Algorithm::HS256,
-        "HS384" => Algorithm::HS384,
-        "HS512" => Algorithm::HS512,
-        "RS256" => Algorithm::RS256,
-        "ES512" => Algorithm::ES512,
-        "ES384" => Algorithm::ES384,
-        "ES256" => Algorithm::ES256,
-        _ => panic!("Unknown algorithm"),
-    }
 }
 
 fn sign_hmac2(data: &str, key: String, algorithm: Algorithm) -> Vec<u8> {
@@ -334,30 +324,6 @@ fn secure_compare(a: &[u8], b: &[u8]) -> bool {
     res == 0
 }
 
-fn base64_url_encode(bytes: &[u8]) -> String {
-    bytes.to_base64(base64::URL_SAFE)
-}
-
-fn json_to_tree(input: Json) -> BTreeMap<String, String> {
-    match input {
-        Json::Object(json_tree) => {
-            json_tree
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k,
-                        match v {
-                            Json::String(s) => s,
-                            _ => unreachable!(),
-                        },
-                    )
-                })
-                .collect()
-        }
-        _ => unreachable!(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     extern crate time;
@@ -380,7 +346,11 @@ mod tests {
         let secret = "secret123";
         let header = Header::new(Algorithm::HS256);
         let jwt1 = encode(header, secret.to_string(), p1.clone());
-        let maybe_res = decode(jwt1, secret.to_string(), Algorithm::HS256);
+        let maybe_res = decode(
+            String::from(jwt1.trim()),
+            secret.to_string(),
+            Algorithm::HS256,
+        );
         assert!(maybe_res.is_ok());
     }
 
@@ -482,8 +452,8 @@ mod tests {
         );
         match res {
             Ok((h2, p2)) => {
-                assert_eq!(h1.ttype, h2.ttype);
-                assert_eq!(h1.algorithm.to_string(), h2.algorithm.to_string()); //todo implement ==
+                assert_eq!(h1.typ, h2.typ);
+                assert_eq!(h1.alg.to_string(), h2.alg.to_string()); //todo implement ==
                 for (k, v) in &p1 {
                     assert_eq!(true, p2.contains_key(k));
                     assert_eq!(v, p2.get(k).unwrap());

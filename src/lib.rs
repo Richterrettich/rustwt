@@ -177,7 +177,6 @@ fn decode_segments(encoded_token: &str) -> Option<(Header, Payload, Vec<u8>, Str
     let (header, payload) = decode_header_and_payload(header_segment, payload_segment);
     let signature = base64::decode_config(crypto_segment, base64::URL_SAFE_NO_PAD)
         .expect("could not decoding base64 signature");
-    // let signature = &crypto_segment.as_bytes().from_base64().unwrap();
     let signing_input = format!("{}.{}", header_segment, payload_segment);
     Some((header, payload, signature.clone(), signing_input))
 }

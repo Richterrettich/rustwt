@@ -62,7 +62,7 @@ impl Header {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Algorithm {
     HS256,
     HS384,
@@ -81,22 +81,6 @@ impl Algorithm {
             Algorithm::HS256 | Algorithm::RS256 | Algorithm::ES256 => MessageDigest::sha256(),
             Algorithm::HS384 | Algorithm::RS384 | Algorithm::ES384 => MessageDigest::sha384(),
             Algorithm::HS512 | Algorithm::RS512 | Algorithm::ES512 => MessageDigest::sha512(),
-        }
-    }
-}
-
-impl ToString for Algorithm {
-    fn to_string(&self) -> String {
-        match *self {
-            Algorithm::HS256 => "HS256".to_string(),
-            Algorithm::HS384 => "HS384".to_string(),
-            Algorithm::HS512 => "HS512".to_string(),
-            Algorithm::RS256 => "RS256".to_string(),
-            Algorithm::RS384 => "RS384".to_string(),
-            Algorithm::RS512 => "RS512".to_string(),
-            Algorithm::ES256 => "ES256".to_string(),
-            Algorithm::ES384 => "ES384".to_string(),
-            Algorithm::ES512 => "ES512".to_string(),
         }
     }
 }
@@ -421,7 +405,7 @@ mod tests {
         match res {
             Ok((h2, p2)) => {
                 assert_eq!(h1.typ, h2.typ);
-                assert_eq!(h1.alg.to_string(), h2.alg.to_string()); //todo implement ==
+                assert_eq!(h1.alg, h2.alg); //todo implement ==
                 for (k, v) in &p1 {
                     assert_eq!(true, p2.contains_key(k));
                     assert_eq!(v, p2.get(k).unwrap());

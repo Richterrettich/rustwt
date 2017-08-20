@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2017 René Richter,
  * Copyright (c) 2015-2017 Alex Maslakov, <http://gildedhonour.com>, <http://alexmaslakov.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +16,9 @@
  *
  * For questions and comments about this product, please see the project page at:
  *
+ * https://github.com/Richterrettich/rusty_jwt
+ *
+ * This was forked from
  * https://github.com/GildedHonour/frank_jwt
  *
  */

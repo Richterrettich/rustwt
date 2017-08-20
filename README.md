@@ -70,7 +70,7 @@ let header = Header::new(Algorithm::RS256);
 let public_key_path = //... path to your public key, needs to be pem formated.
 let mut key_file = File::open(private_key_path).expect("Unable to open private key file");
 let mut key_pem: Vec<u8> = Vec::new();
-file.read_to_end(&mut buffer).expect("Unable to read pem from file");
+file.read_to_end(&mut key_pem).expect("Unable to read pem from file");
 
 let jwt = encode(header, key_pem, payload);
 ```

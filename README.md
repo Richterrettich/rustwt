@@ -1,4 +1,4 @@
-Rusty JWT 
+Rusty JWT
 ================================================
 [![Build Status](https://travis-ci.org/Richterrettich/rusty_jwt.svg?branch=master)](https://travis-ci.org/Richterrettich/rusty_jwt)
 
@@ -56,20 +56,23 @@ let secret = "secret123";
 
 let jwt = encode(header, secret.to_string(), payload.clone());
 
-//RS256
-use std::env;
+//public key signatures:
+
+use std::fs::File;
+use std::io::Read;
 
 let mut payload = Payload::new();
 payload.insert("key1".to_string(), "val1".to_string());
 payload.insert("key2".to_string(), "val2".to_string());
 let header = Header::new(Algorithm::RS256);
 
-let mut path = env::current_dir().unwrap();
-path.push("some_folder");
-path.push("my_rsa_2048_key.pem");
-let key_path = path.to_str().unwrap().to_string();
 
-let jwt = encode(header, key_path, payload.clone());
+let public_key_path = //... path to your public key, needs to be pem formated.
+let mut key_file = File::open(private_key_path).expect("Unable to open private key file");
+let mut key_pem: Vec<u8> = Vec::new();
+file.read_to_end(&mut buffer).expect("Unable to read pem from file");
+
+let jwt = encode(header, key_pem, payload);
 ```
 
 ## License

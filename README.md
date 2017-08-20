@@ -1,5 +1,6 @@
 Rusty JWT 
 ================================================
+[![Build Status](https://travis-ci.org/Richterrettich/rusty_jwt.svg?branch=master)](https://travis-ci.org/Richterrettich/rusty_jwt)
 
 This is an active fork of https://github.com/GildedHonour/frank_jwt
 

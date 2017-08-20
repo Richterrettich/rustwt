@@ -55,12 +55,8 @@ impl Header {
     pub fn new(alg: Algorithm) -> Header {
         Header {
             algorithm: alg,
-            ttype: Header::std_type(),
+            ttype: "JWT",
         }
-    }
-
-    pub fn std_type() -> String {
-        "JWT".to_string()
     }
 }
 

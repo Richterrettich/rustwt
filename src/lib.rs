@@ -130,6 +130,23 @@ pub fn encode<T: ?Sized + AsRef<[u8]>>(header: Header, key: &T, payload: Payload
     format!("{}.{}", signing_input, signature)
 }
 
+
+/// Decodes a jwt and checks it's validity.
+///
+/// This function decodes a valid base64 encoded token.
+/// If the token is invalid, an appropriate error will be returned.
+///
+/// # Example
+///
+/// ```rust
+/// static RSA_PUBLIC_KEY: &str = include_str!("/path/to/public_key.pem");
+/// let jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkxIjoi...";
+/// let decode_result = decode(jwt, RSA_PUBLIC_KEY, Algorithm::RS256);
+/// match decode_result {
+///   Some((header,payload)) => println!("valid token!"),
+///   Err(e) => panic!("{}",e);
+/// }
+/// ```
 pub fn decode<T, E>(
     encoded_token: E,
     key: &T,

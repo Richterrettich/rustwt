@@ -75,6 +75,16 @@ pub enum Algorithm {
     ES512,
 }
 
+impl Algorithm {
+    fn get_hash(&self) -> MessageDigest {
+        match *self {
+            Algorithm::HS256 | Algorithm::RS256 | Algorithm::ES256 => MessageDigest::sha256(),
+            Algorithm::HS384 | Algorithm::RS384 | Algorithm::ES384 => MessageDigest::sha384(),
+            Algorithm::HS512 | Algorithm::RS512 | Algorithm::ES512 => MessageDigest::sha512(),
+        }
+    }
+}
+
 impl ToString for Algorithm {
     fn to_string(&self) -> String {
         match *self {
@@ -100,15 +110,6 @@ pub enum Error {
     ExpirationInvalid,
     AudienceInvalid,
 }
-
-// impl ToJson for Header {
-//     fn to_json(&self) -> json::Json {
-//         let mut map = BTreeMap::new();
-//         map.insert("typ".to_string(), self.typ.to_json());
-//         map.insert("alg".to_string(), self.alg.to_string().to_json());
-//         Json::Object(map)
-//     }
-// }
 
 pub fn encode(header: Header, key: String, payload: Payload) -> String {
     let signing_input = get_signing_input(payload, &header.alg);
@@ -162,47 +163,28 @@ fn get_signing_input(payload: Payload, algorithm: &Algorithm) -> String {
 }
 
 fn sign_hmac(data: &str, key: String, algorithm: Algorithm) -> String {
-    let stp = match algorithm {
-        Algorithm::HS256 => MessageDigest::sha256(),
-        Algorithm::HS384 => MessageDigest::sha384(),
-        Algorithm::HS512 => MessageDigest::sha512(),
-        _ => panic!("Invalid hmac algorithm"),
-    };
-
+    let hash = algorithm.get_hash();
     let key = PKey::hmac(key.as_bytes()).unwrap();
-    let mut signer = Signer::new(stp, &key).unwrap();
-    signer.update(data.as_bytes()).unwrap();
-    let hmac = signer.finish().unwrap();
-    base64::encode_config(&hmac, base64::URL_SAFE_NO_PAD)
+    sign(data, key, hash)
 }
 
 fn sign_rsa(data: &str, private_key_path: String, algorithm: Algorithm) -> String {
-    let stp = match algorithm {
-        Algorithm::RS256 => MessageDigest::sha256(),
-        Algorithm::RS384 => MessageDigest::sha384(),
-        Algorithm::RS512 => MessageDigest::sha512(),
-        _ => panic!("Invalid hmac algorithm"),
-    };
+    let hash = algorithm.get_hash();
 
     let buffer = read_pem(&private_key_path[..]);
     let rsa = Rsa::private_key_from_pem(&buffer).unwrap();
     let key = PKey::from_rsa(rsa).unwrap();
-    sign(data, key, stp)
+    sign(data, key, hash)
 }
 
 fn sign_es(data: &str, private_key_path: String, algorithm: Algorithm) -> String {
+    let hash = algorithm.get_hash();
     let raw_key = read_pem(&private_key_path[..]);
     let ec_key =
         EcKey::private_key_from_pem(&raw_key).expect("could not convert to EC private key");
     let key = PKey::from_ec_key(ec_key).expect("could not convert EC private key");
-    let stp = match algorithm {
-        Algorithm::ES256 => MessageDigest::sha256(),
-        Algorithm::ES384 => MessageDigest::sha384(),
-        Algorithm::ES512 => MessageDigest::sha512(),
-        _ => panic!("Invalid hmac algorithm"),
-    };
 
-    sign(data, key, stp)
+    sign(data, key, hash)
 }
 
 fn sign(data: &str, private_key: PKey, digest: MessageDigest) -> String {

@@ -117,9 +117,9 @@ pub fn encode(header: Header, key: String, payload: Payload) -> String {
 }
 
 pub fn decode(encoded_token: String, key: String, algorithm: Algorithm) -> Result<(Header, Payload), Error> {
-  match decode_segments(encoded_token) {
+  match decode_segments(&encoded_token[..]) {
     Some((header, payload, signature, signing_input)) => {
-      if !verify_signature(algorithm, signing_input, &signature, key.to_string()) {
+      if !verify_signature(algorithm, signing_input, &signature, key) {
         return Err(Error::SignatureInvalid)
       }
 
@@ -201,7 +201,7 @@ fn read_pem(private_key_path: &str) -> Vec<u8>{
     buffer
 }
 
-fn decode_segments(encoded_token: String) -> Option<(Header, Payload, Vec<u8>, String)> {
+fn decode_segments(encoded_token: &str) -> Option<(Header, Payload, Vec<u8>, String)> {
   let raw_segments: Vec<&str> = encoded_token.split(".").collect();
   if raw_segments.len() != segments_count() {
     return None

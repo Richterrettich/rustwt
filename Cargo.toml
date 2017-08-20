@@ -13,10 +13,10 @@ keywords = ["jwt", "json", "token", "encryption", "auth0-jwt"]
 readme = "README.md"
 
 [dependencies]
-time = "0.1.37"
+time = "~0.1.37"
 openssl = "~0.9.12"
 
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-base64 = "0.6.0"
+base64 = "0.6"

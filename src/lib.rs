@@ -36,7 +36,6 @@ extern crate base64;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
-use std::str;
 
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;

@@ -146,9 +146,9 @@ pub fn decode(
     }
 }
 
-fn segments_count() -> usize {
-    3
-}
+static SEGMENTS_COUNT: usize = 3;
+
+
 
 fn get_signing_input(payload: Payload, algorithm: &Algorithm) -> String {
     let header = Header::new(*algorithm);
@@ -203,7 +203,7 @@ fn read_pem(private_key_path: &str) -> Vec<u8> {
 
 fn decode_segments(encoded_token: &str) -> Option<(Header, Payload, Vec<u8>, String)> {
     let raw_segments: Vec<&str> = encoded_token.split(".").collect();
-    if raw_segments.len() != segments_count() {
+    if raw_segments.len() != SEGMENTS_COUNT {
         return None;
     }
 

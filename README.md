@@ -1,5 +1,8 @@
-Frank JWT [![Build Status](https://travis-ci.org/GildedHonour/frank_jwt.svg)](https://travis-ci.org/GildedHonour/frank_jwt) [![crates.io](https://img.shields.io/crates/v/frank_jwt.svg)](https://crates.io/crates/frank_jwt)
+Rusty JWT 
 ================================================
+
+This is an active fork of https://github.com/GildedHonour/frank_jwt
+
 
 Implementation of [JSON Web Tokens](http://jwt.io) in Rust.
 
@@ -29,15 +32,15 @@ Put this into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-frank_jwt = "<current version of frank_jwt>"
+rusty_jwt = "<current version of frank_jwt>"
 ```
 
 And this in your crate root:
 
 ```rust
-extern crate frank_jwt;
+extern crate rusty_jwt;
 
-use frank_jwt::{Header, Payload, Algorithm, encode, decode};
+use rusty_jwt::{Header, Payload, Algorithm, encode, decode};
 ```
 
 ## Example
@@ -77,8 +80,3 @@ Apache 2.0
 ```shell
 cargo test
 ```
-
-## I'm available for hire
-I'm a freelance developer and looking forward to new challenges.
-
-me@gildedhonour.com | gildedhonour.com

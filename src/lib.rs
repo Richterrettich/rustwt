@@ -396,7 +396,7 @@ mod tests {
     }
 
 
-    static RS256_JWT: &'static str = include_str!("../test/valid_rs256.jwt");
+    static RS256_JWT: &str = include_str!("../test/valid_rs256.jwt");
     #[test]
     fn test_decode_valid_jwt_rs256() {
         let mut p1 = Payload::new();

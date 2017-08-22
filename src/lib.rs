@@ -37,10 +37,9 @@ use std::collections::BTreeMap;
 
 use openssl::hash::MessageDigest;
 use openssl::pkey::PKey;
-use openssl::rsa::Rsa;
-use openssl::sign::Signer;
-use openssl::sign::Verifier;
-use openssl::ec::EcKey;
+use openssl::sign::{Signer, Verifier};
+use openssl::error::ErrorStack;
+use openssl::memcmp;
 
 pub type Payload = BTreeMap<String, String>;
 
@@ -90,6 +89,14 @@ pub enum Error {
     IssuerInvalid,
     ExpirationInvalid,
     AudienceInvalid,
+    OpensslError(ErrorStack),
+}
+
+
+impl From<ErrorStack> for Error {
+    fn from(err: ErrorStack) -> Error {
+        Error::OpensslError(err)
+    }
 }
 
 impl std::error::Error for Error {
@@ -101,6 +108,7 @@ impl std::error::Error for Error {
             Error::IssuerInvalid => "invalid issuer",
             Error::ExpirationInvalid => "invalid expiration",
             Error::AudienceInvalid => "invalid audience",
+            Error::OpensslError(ref e) => e.description(),
         }
     }
 }
@@ -114,57 +122,139 @@ impl std::fmt::Display for Error {
             Error::IssuerInvalid => write!(f, "invalid issuer"),
             Error::ExpirationInvalid => write!(f, "invalid expiration"),
             Error::AudienceInvalid => write!(f, "invalid audience"),
+            Error::OpensslError(ref e) => e.fmt(f),
         }
     }
 }
 
-pub fn encode<T: ?Sized + AsRef<[u8]>>(header: Header, key: &T, payload: Payload) -> String {
-    let signing_input = get_signing_input(payload, &header.alg);
-    let kr = key.as_ref();
-    let pkey = match header.alg {
-        Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => PKey::hmac(kr).unwrap(),
-        Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 => rsa_key(kr),
-        Algorithm::ES256 | Algorithm::ES384 | Algorithm::ES512 => ec_key(kr),
-    };
-    let signature = sign_and_encode(&signing_input, pkey, header.alg.get_hash());
-    format!("{}.{}", signing_input, signature)
+pub struct Encoder {
+    key: PKey,
+    algorithm: Algorithm,
 }
 
 
-/// Decodes a jwt and checks it's validity.
-///
-/// This function decodes a valid base64 encoded token.
-/// If the token is invalid, an appropriate error will be returned.
-///
-/// # Example
-///
-/// ```rust
-/// static RSA_PUBLIC_KEY: &str = include_str!("/path/to/public_key.pem");
-/// let jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkxIjoi...";
-/// let decode_result = decode(jwt, RSA_PUBLIC_KEY, Algorithm::RS256);
-/// match decode_result {
-///   Some((header,payload)) => println!("valid token!"),
-///   Err(e) => panic!("{}",e);
-/// }
-/// ```
-pub fn decode<T, E>(
-    encoded_token: E,
-    key: &T,
-    algorithm: Algorithm,
-) -> Result<(Header, Payload), Error>
-where
-    T: ?Sized + AsRef<[u8]>,
-    E: AsRef<str>,
-{
-    match decode_segments(encoded_token.as_ref()) {
-        Some((header, payload, signature, signing_input)) => {
-            if !verify_signature(algorithm, signing_input, &signature, key.as_ref()) {
-                return Err(Error::SignatureInvalid);
-            }
-            Ok((header, payload))
-        }
+impl Encoder {
+    pub fn from_raw_private_key<T: ?Sized + AsRef<[u8]>>(
+        raw_key: &T,
+        alg: Algorithm,
+    ) -> Result<Encoder, Error> {
+        let kr = raw_key.as_ref();
+        let pkey = match alg {
+            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => PKey::hmac(kr)?,
+            Algorithm::RS256 | Algorithm::RS384 | Algorithm::RS512 | Algorithm::ES256 |
+            Algorithm::ES384 | Algorithm::ES512 => PKey::private_key_from_pem(kr)?,
+        };
+        Ok(Encoder {
+            key: pkey,
+            algorithm: alg,
+        })
+    }
 
-        None => Err(Error::JWTInvalid),
+    pub fn from_private_key(pkey: PKey, alg: Algorithm) -> Encoder {
+        Encoder {
+            key: pkey,
+            algorithm: alg,
+        }
+    }
+
+    pub fn encode(&self, payload: Payload) -> Result<String, Error> {
+        let signing_input = get_signing_input(payload, &self.algorithm);
+        let signature = sign_and_encode(&signing_input, &self.key, self.algorithm.get_hash())?;
+        Ok(format!("{}.{}", signing_input, signature))
+    }
+}
+
+/// Structure for decoding JWT.
+pub struct Decoder {
+    key: PKey,
+}
+
+impl Decoder {
+    pub fn from_hmac_secret<T: ?Sized + AsRef<[u8]>>(secret: &T) -> Result<Decoder, Error> {
+        let kr = secret.as_ref();
+        let key = PKey::hmac(kr)?;
+        Ok(Decoder { key: key })
+    }
+    pub fn from_pem<T: ?Sized + AsRef<[u8]>>(raw_key: &T) -> Result<Decoder, Error> {
+        let kr = raw_key.as_ref();
+        let pkey = PKey::public_key_from_pem(kr)?;
+        Ok(Decoder { key: pkey })
+    }
+
+    pub fn from_public_key(key: PKey) -> Decoder {
+        Decoder { key: key }
+    }
+
+    /// This function decodes a valid base64 encoded token.
+    /// If the token is invalid, an appropriate error will be returned.
+    ///
+    /// # Example public key signature
+    ///
+    /// ```rust
+    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder};
+    /// // you can use RSA keys as well. Just adjust the algorithm.
+    /// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
+    /// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
+    /// let mut p1 = Payload::new();
+    /// p1.insert("key12".to_string(), "val1".to_string());
+    /// p1.insert("key22".to_string(), "val2".to_string());
+    /// p1.insert("key33".to_string(), "val3".to_string());
+    /// let encoder = Encoder::from_raw_private_key(ec_private_key, Algorithm::ES256).unwrap();
+    /// let decoder = Decoder::from_pem(ec_public_key).unwrap();
+    /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+    /// let maybe_res = decoder.decode(jwt1);
+    /// ```
+    ///
+    /// # Example hmac
+    /// ```rust
+    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder};
+    /// let secret: &str = "secret123";
+    /// let mut p1 = Payload::new();
+    /// p1.insert("key12".to_string(), "val1".to_string());
+    /// p1.insert("key22".to_string(), "val2".to_string());
+    /// p1.insert("key33".to_string(), "val3".to_string());
+    /// let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
+    /// let decoder = Decoder::from_hmac_secret(secret).unwrap();
+    /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+    /// let maybe_res = decoder.decode(jwt1);
+    /// ```
+    pub fn decode<T: AsRef<str>>(&self, token: T) -> Result<(Header, Payload), Error> {
+        match decode_segments(token.as_ref()) {
+            Some((header, payload, signature, signing_input)) => {
+                if !self.verify_signature(
+                    &signing_input[..],
+                    &signature,
+                    header.alg,
+                )?
+                {
+                    return Err(Error::SignatureInvalid);
+                }
+                Ok((header, payload))
+            }
+
+            None => Err(Error::JWTInvalid),
+        }
+    }
+
+    fn verify_signature(
+        &self,
+        signing_input: &str,
+        signature: &[u8],
+        algorithm: Algorithm,
+    ) -> Result<bool, Error> {
+        match algorithm {
+            Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {
+                let signature2 = sign(&signing_input, &self.key, algorithm.get_hash())?;
+                Ok(memcmp::eq(signature, &signature2))
+            }
+            _ => {
+                let mut verifier = Verifier::new(algorithm.get_hash(), &self.key)?;
+                verifier.update(signing_input.as_bytes())?;
+                verifier.finish(&signature).map_err(
+                    |e| Error::OpensslError(e),
+                )
+            }
+        }
     }
 }
 
@@ -184,27 +274,15 @@ fn get_signing_input(payload: Payload, algorithm: &Algorithm) -> String {
     format!("{}.{}", encoded_header, encoded_payload)
 }
 
-
-fn rsa_key(raw_key: &[u8]) -> PKey {
-    let rsa = Rsa::private_key_from_pem(raw_key).unwrap();
-    PKey::from_rsa(rsa).unwrap()
+fn sign(data: &str, private_key: &PKey, digest: MessageDigest) -> Result<Vec<u8>, ErrorStack> {
+    let mut signer = Signer::new(digest, &private_key)?;
+    signer.update(data.as_bytes())?;
+    signer.finish()
 }
 
-fn ec_key(raw_key: &[u8]) -> PKey {
-    let ec_key =
-        EcKey::private_key_from_pem(&raw_key).expect("could not convert to EC private key");
-    PKey::from_ec_key(ec_key).expect("could not convert EC private key")
-}
-
-fn sign(data: &str, private_key: PKey, digest: MessageDigest) -> Vec<u8> {
-    let mut signer = Signer::new(digest, &private_key).unwrap();
-    signer.update(data.as_bytes()).unwrap();
-    signer.finish().unwrap()
-}
-
-fn sign_and_encode(data: &str, private_key: PKey, digest: MessageDigest) -> String {
-    let raw = sign(data, private_key, digest);
-    base64::encode_config(&raw, base64::URL_SAFE_NO_PAD)
+fn sign_and_encode(data: &str, private_key: &PKey, digest: MessageDigest) -> Result<String, Error> {
+    let raw = sign(data, private_key, digest)?;
+    Ok(base64::encode_config(&raw, base64::URL_SAFE_NO_PAD))
 }
 
 
@@ -240,40 +318,6 @@ fn decode_header_and_payload(header_segment: &str, payload_segment: &str) -> (He
 
 
 
-fn verify_signature(
-    algorithm: Algorithm,
-    signing_input: String,
-    signature: &[u8],
-    public_key: &[u8],
-) -> bool {
-    match algorithm {
-
-        Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {
-            let key = PKey::hmac(public_key).unwrap();
-            let signature2 = sign(&signing_input, key, algorithm.get_hash());
-            secure_compare(signature, &signature2)
-        }
-        _ => {
-            let key = PKey::public_key_from_pem(public_key).expect("could not convert pem to pkey");
-            let mut verifier = Verifier::new(algorithm.get_hash(), &key).unwrap();
-            verifier.update(signing_input.as_bytes()).unwrap();
-            verifier.finish(&signature).unwrap()
-        }
-    }
-}
-
-fn secure_compare(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut res = 0_u8;
-    for (&x, &y) in a.iter().zip(b.iter()) {
-        res |= x ^ y;
-    }
-
-    res == 0
-}
 
 #[cfg(test)]
 mod tests {
@@ -281,11 +325,9 @@ mod tests {
 
     use super::Header;
     use super::Payload;
-    use super::encode;
-    use super::decode;
     use super::Algorithm;
-    use super::secure_compare;
-    use std::env;
+    use super::Encoder;
+    use super::Decoder;
 
     #[test]
     fn test_encode_and_decode_jwt_hs256() {
@@ -295,9 +337,10 @@ mod tests {
         p1.insert("key3".to_string(), "val3".to_string());
 
         let secret = "secret123";
-        let header = Header::new(Algorithm::HS256);
-        let jwt1 = encode(header, secret, p1.clone());
-        let maybe_res = decode(jwt1.trim(), secret, Algorithm::HS256);
+        let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
+        let decoder = Decoder::from_hmac_secret(secret).unwrap();
+        let jwt1 = encoder.encode(p1.clone()).expect("error while encoding.");
+        let maybe_res = decoder.decode(jwt1.trim());
         assert!(maybe_res.is_ok());
     }
 
@@ -308,24 +351,9 @@ mod tests {
         p1.insert("key11".to_string(), "val1".to_string());
         p1.insert("key22".to_string(), "val2".to_string());
         let secret = "secret123";
-        let maybe_res = decode(HS256_JWT, secret, Algorithm::HS256);
+        let decoder = Decoder::from_hmac_secret(secret).unwrap();
+        let maybe_res = decoder.decode(HS256_JWT);
         assert!(maybe_res.is_ok());
-    }
-
-    #[test]
-    fn test_secure_compare_same_strings() {
-        let str1 = "same same".as_bytes();
-        let str2 = "same same".as_bytes();
-        let res = secure_compare(str1, str2);
-        assert!(res);
-    }
-
-    #[test]
-    fn test_fails_when_secure_compare_different_strings() {
-        let str1 = "same same".as_bytes();
-        let str2 = "same same but different".as_bytes();
-        let res = secure_compare(str1, str2);
-        assert!(!res);
     }
 
     #[test]
@@ -336,9 +364,10 @@ mod tests {
         p1.insert("key3".to_string(), "val3".to_string());
 
         let secret = "secret123";
-        let header = Header::new(Algorithm::HS384);
-        let jwt1 = encode(header, secret, p1.clone());
-        let maybe_res = decode(jwt1, secret, Algorithm::HS384);
+        let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS384).unwrap();
+        let decoder = Decoder::from_hmac_secret(secret).unwrap();
+        let jwt1 = encoder.encode(p1.clone()).unwrap();
+        let maybe_res = decoder.decode(jwt1);
         assert!(maybe_res.is_ok());
     }
 
@@ -350,9 +379,10 @@ mod tests {
         p1.insert("key33".to_string(), "val3".to_string());
 
         let secret = "secret123456";
-        let header = Header::new(Algorithm::HS512);
-        let jwt1 = encode(header, secret, p1.clone());
-        let maybe_res = decode(jwt1, secret, Algorithm::HS512);
+        let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS512).unwrap();
+        let decoder = Decoder::from_hmac_secret(secret).unwrap();
+        let jwt1 = encoder.encode(p1.clone()).unwrap();
+        let maybe_res = decoder.decode(jwt1);
         assert!(maybe_res.is_ok());
     }
 
@@ -362,27 +392,23 @@ mod tests {
         p1.insert("key12".to_string(), "val1".to_string());
         p1.insert("key22".to_string(), "val2".to_string());
         p1.insert("key33".to_string(), "val3".to_string());
-        let header = Header::new(Algorithm::RS256);
 
-        let mut path = env::current_dir().unwrap();
-        path.push("test");
-        path.push("my_rsa_2048_key.pem");
-        path.to_str().unwrap().to_string();
-
-        let jwt1 = encode(header, RSA_PRIVATE_KEY, p1.clone());
-        let maybe_res = decode(jwt1, RSA_PUBLIC_KEY, Algorithm::RS256);
+        let encoder = Encoder::from_raw_private_key(RSA_PRIVATE_KEY, Algorithm::RS256).unwrap();
+        let decoder = Decoder::from_pem(RSA_PUBLIC_KEY).unwrap();
+        let jwt1 = encoder.encode(p1.clone()).unwrap();
+        let maybe_res = decoder.decode(jwt1);
         assert!(maybe_res.is_ok());
     }
 
 
     static RS256_JWT: &str = include_str!("../test/valid_rs256.jwt");
     #[test]
-    fn test_decode_valid_jwt_rs256() {
+    fn test_encode_valid_jwt_rs256() {
         let mut p1 = Payload::new();
         p1.insert("key1".to_string(), "val1".to_string());
         p1.insert("key2".to_string(), "val2".to_string());
-        let header = Header::new(Algorithm::RS256);
-        let jwt = encode(header, RSA_PRIVATE_KEY, p1.clone());
+        let encoder = Encoder::from_raw_private_key(RSA_PRIVATE_KEY, Algorithm::RS256).unwrap();
+        let jwt = encoder.encode(p1.clone()).expect("error while encoding");
         assert_eq!(RS256_JWT, jwt);
     }
 
@@ -392,7 +418,8 @@ mod tests {
         p1.insert("key1".to_string(), "val1".to_string());
         p1.insert("key2".to_string(), "val2".to_string());
         let h1 = Header::new(Algorithm::RS256);
-        let res = decode(RS256_JWT, RSA_PUBLIC_KEY, Algorithm::RS256);
+        let decoder = Decoder::from_pem(RSA_PUBLIC_KEY).unwrap();
+        let res = decoder.decode(RS256_JWT);
         match res {
             Ok((h2, p2)) => {
                 assert_eq!(h1.typ, h2.typ);
@@ -406,6 +433,21 @@ mod tests {
         }
     }
 
+    static MANIPULATED_RS256_JWT: &str = include_str!("../test/manipulated_rs256.jwt");
+    #[test]
+    fn it_should_fail_if_the_rsa_signature_is_invalid() {
+        let decoder = Decoder::from_pem(RSA_PUBLIC_KEY).unwrap();
+        let res = decoder.decode(MANIPULATED_RS256_JWT);
+        assert!(res.is_err());
+
+        let e = res.err().unwrap();
+
+        let right_error = match e {
+            super::Error::SignatureInvalid => true,
+            _ => false,
+        };
+        assert!(right_error);
+    }
 
     #[test]
     fn test_encode_and_decode_jwt_ec() {
@@ -413,10 +455,10 @@ mod tests {
         p1.insert("key12".to_string(), "val1".to_string());
         p1.insert("key22".to_string(), "val2".to_string());
         p1.insert("key33".to_string(), "val3".to_string());
-        let header = Header::new(Algorithm::ES512);
-
-        let jwt1 = encode(header, EC_PRIVATE_KEY, p1.clone());
-        let maybe_res = decode(jwt1, EC_PUBLIC_KEY, Algorithm::ES512);
+        let encoder = Encoder::from_raw_private_key(EC_PRIVATE_KEY, Algorithm::ES256).unwrap();
+        let decoder = Decoder::from_pem(EC_PUBLIC_KEY).unwrap();
+        let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+        let maybe_res = decoder.decode(jwt1);
         assert!(maybe_res.is_ok());
     }
 

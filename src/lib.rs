@@ -40,8 +40,9 @@ use openssl::pkey::PKey;
 use openssl::sign::{Signer, Verifier};
 use openssl::error::ErrorStack;
 use openssl::memcmp;
+pub use serde_json::Value;
 
-pub type Payload = BTreeMap<String, String>;
+pub type Payload = BTreeMap<String, Value>;
 
 #[derive(Serialize, Deserialize)]
 pub struct Header {
@@ -191,14 +192,14 @@ impl Decoder {
     /// # Example public key signature
     ///
     /// ```rust
-    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder};
+    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder,Value};
     /// // you can use RSA keys as well. Just adjust the algorithm.
     /// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
     /// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
     /// let mut p1 = Payload::new();
-    /// p1.insert("key12".to_string(), "val1".to_string());
-    /// p1.insert("key22".to_string(), "val2".to_string());
-    /// p1.insert("key33".to_string(), "val3".to_string());
+    /// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+    /// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+    /// p1.insert("key33".to_string(), Value::String("val3".to_string()));
     /// let encoder = Encoder::from_raw_private_key(ec_private_key, Algorithm::ES256).unwrap();
     /// let decoder = Decoder::from_pem(ec_public_key).unwrap();
     /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
@@ -207,12 +208,12 @@ impl Decoder {
     ///
     /// # Example hmac
     /// ```rust
-    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder};
+    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder,Value};
     /// let secret: &str = "secret123";
     /// let mut p1 = Payload::new();
-    /// p1.insert("key12".to_string(), "val1".to_string());
-    /// p1.insert("key22".to_string(), "val2".to_string());
-    /// p1.insert("key33".to_string(), "val3".to_string());
+    /// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+    /// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+    /// p1.insert("key33".to_string(), Value::String("val3".to_string()));
     /// let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
     /// let decoder = Decoder::from_hmac_secret(secret).unwrap();
     /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
@@ -328,13 +329,14 @@ mod tests {
     use super::Algorithm;
     use super::Encoder;
     use super::Decoder;
+    use super::Value;
 
     #[test]
     fn test_encode_and_decode_jwt_hs256() {
         let mut p1 = Payload::new();
-        p1.insert("key1".to_string(), "val1".to_string());
-        p1.insert("key2".to_string(), "val2".to_string());
-        p1.insert("key3".to_string(), "val3".to_string());
+        p1.insert("key1".to_string(), Value::String("val2".to_string()));
+        p1.insert("key2".to_string(), Value::String("val2".to_string()));
+        p1.insert("key3".to_string(), Value::String("val3".to_string()));
 
         let secret = "secret123";
         let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
@@ -348,8 +350,8 @@ mod tests {
     #[test]
     fn test_decode_valid_jwt_hs256() {
         let mut p1 = Payload::new();
-        p1.insert("key11".to_string(), "val1".to_string());
-        p1.insert("key22".to_string(), "val2".to_string());
+        p1.insert("key11".to_string(), Value::String("val1".to_string()));
+        p1.insert("key22".to_string(), Value::String("val2".to_string()));
         let secret = "secret123";
         let decoder = Decoder::from_hmac_secret(secret).unwrap();
         let maybe_res = decoder.decode(HS256_JWT);
@@ -359,9 +361,9 @@ mod tests {
     #[test]
     fn test_encode_and_decode_jwt_hs384() {
         let mut p1 = Payload::new();
-        p1.insert("key1".to_string(), "val1".to_string());
-        p1.insert("key2".to_string(), "val2".to_string());
-        p1.insert("key3".to_string(), "val3".to_string());
+        p1.insert("key1".to_string(), Value::String("val1".to_string()));
+        p1.insert("key2".to_string(), Value::String("val2".to_string()));
+        p1.insert("key3".to_string(), Value::String("val3".to_string()));
 
         let secret = "secret123";
         let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS384).unwrap();
@@ -374,9 +376,9 @@ mod tests {
     #[test]
     fn test_encode_and_decode_jwt_hs512() {
         let mut p1 = Payload::new();
-        p1.insert("key12".to_string(), "val1".to_string());
-        p1.insert("key22".to_string(), "val2".to_string());
-        p1.insert("key33".to_string(), "val3".to_string());
+        p1.insert("key12".to_string(), Value::String("val1".to_string()));
+        p1.insert("key22".to_string(), Value::String("val2".to_string()));
+        p1.insert("key33".to_string(), Value::String("val3".to_string()));
 
         let secret = "secret123456";
         let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS512).unwrap();
@@ -389,9 +391,9 @@ mod tests {
     #[test]
     fn test_encode_and_decode_jwt_rs256() {
         let mut p1 = Payload::new();
-        p1.insert("key12".to_string(), "val1".to_string());
-        p1.insert("key22".to_string(), "val2".to_string());
-        p1.insert("key33".to_string(), "val3".to_string());
+        p1.insert("key12".to_string(), Value::String("val1".to_string()));
+        p1.insert("key22".to_string(), Value::String("val2".to_string()));
+        p1.insert("key33".to_string(), Value::String("val3".to_string()));
 
         let encoder = Encoder::from_raw_private_key(RSA_PRIVATE_KEY, Algorithm::RS256).unwrap();
         let decoder = Decoder::from_pem(RSA_PUBLIC_KEY).unwrap();
@@ -405,8 +407,8 @@ mod tests {
     #[test]
     fn test_encode_valid_jwt_rs256() {
         let mut p1 = Payload::new();
-        p1.insert("key1".to_string(), "val1".to_string());
-        p1.insert("key2".to_string(), "val2".to_string());
+        p1.insert("key1".to_string(), Value::String("val1".to_string()));
+        p1.insert("key2".to_string(), Value::String("val2".to_string()));
         let encoder = Encoder::from_raw_private_key(RSA_PRIVATE_KEY, Algorithm::RS256).unwrap();
         let jwt = encoder.encode(p1.clone()).expect("error while encoding");
         assert_eq!(RS256_JWT, jwt);
@@ -415,8 +417,8 @@ mod tests {
     #[test]
     fn test_decode_valid_jwt_rs256_and_check_deeply() {
         let mut p1 = Payload::new();
-        p1.insert("key1".to_string(), "val1".to_string());
-        p1.insert("key2".to_string(), "val2".to_string());
+        p1.insert("key1".to_string(), Value::String("val1".to_string()));
+        p1.insert("key2".to_string(), Value::String("val2".to_string()));
         let h1 = Header::new(Algorithm::RS256);
         let decoder = Decoder::from_pem(RSA_PUBLIC_KEY).unwrap();
         let res = decoder.decode(RS256_JWT);
@@ -452,9 +454,9 @@ mod tests {
     #[test]
     fn test_encode_and_decode_jwt_ec() {
         let mut p1 = Payload::new();
-        p1.insert("key12".to_string(), "val1".to_string());
-        p1.insert("key22".to_string(), "val2".to_string());
-        p1.insert("key33".to_string(), "val3".to_string());
+        p1.insert("key12".to_string(), Value::String("val1".to_string()));
+        p1.insert("key22".to_string(), Value::String("val2".to_string()));
+        p1.insert("key33".to_string(), Value::String("val3".to_string()));
         let encoder = Encoder::from_raw_private_key(EC_PRIVATE_KEY, Algorithm::ES256).unwrap();
         let decoder = Decoder::from_pem(EC_PUBLIC_KEY).unwrap();
         let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");

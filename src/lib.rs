@@ -31,6 +31,7 @@ extern crate serde_json;
 extern crate time;
 extern crate openssl;
 extern crate base64;
+extern crate uuid;
 
 
 use std::collections::BTreeMap;
@@ -40,7 +41,11 @@ use openssl::pkey::PKey;
 use openssl::sign::{Signer, Verifier};
 use openssl::error::ErrorStack;
 use openssl::memcmp;
-pub use serde_json::Value;
+use std::convert::From;
+
+pub use serde_json::{Value, Number};
+
+pub mod id_token;
 
 pub type Payload = BTreeMap<String, Value>;
 
@@ -165,7 +170,10 @@ impl Encoder {
     }
 }
 
-/// Structure for decoding JWT.
+
+
+
+/// Basic structure for decoding JWT.
 pub struct Decoder {
     key: PKey,
 }

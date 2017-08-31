@@ -7,6 +7,12 @@ This is a hard fork of https://github.com/GildedHonour/frank_jwt
 
 Implementation of [JSON Web Tokens](http://jwt.io) in Rust.
 
+
+## Links
+
+- [Documentation](https://docs.rs/rustwt/)
+- [Crates.io page](https://crates.io/crates/rustwt)
+
 ## Algorithms and features supported
 - [x] HS256
 - [x] HS384

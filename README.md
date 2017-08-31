@@ -35,14 +35,6 @@ Put this into your `Cargo.toml`:
 rustwt = "1.0.0"
 ```
 
-And this in your crate root:
-
-```rust
-extern crate rusty_jwt;
-
-use rustwt::{Header, Payload, Algorithm, encode, decode};
-```
-
 ## License
 
 Apache 2.0

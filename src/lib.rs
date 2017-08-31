@@ -200,7 +200,7 @@ impl Decoder {
     /// # Example public key signature
     ///
     /// ```rust
-    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder,Value};
+    /// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
     /// // you can use RSA keys as well. Just adjust the algorithm.
     /// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
     /// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
@@ -216,7 +216,7 @@ impl Decoder {
     ///
     /// # Example hmac
     /// ```rust
-    /// use rusty_jwt::{Payload,Encoder,Algorithm,Decoder,Value};
+    /// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
     /// let secret: &str = "secret123";
     /// let mut p1 = Payload::new();
     /// p1.insert("key12".to_string(), Value::String("val1".to_string()));

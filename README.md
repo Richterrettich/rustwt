@@ -25,6 +25,7 @@ Implementation of [JSON Web Tokens](http://jwt.io) in Rust.
 - [x] exp (expiration time) check
 - [x] nbf (not before time) check
 - [x] iat (issued at) check
+- [x] jti (JWT ID) check
 
 ## Usage
 

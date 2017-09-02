@@ -1,6 +1,6 @@
 [package]
 name = "rustwt"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["René Richter <richterrettich@gmail.com>"]
 license = "Apache-2.0"
 

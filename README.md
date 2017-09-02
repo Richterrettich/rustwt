@@ -39,7 +39,7 @@ Put this into your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rustwt = "1.0.0"
+rustwt = "1.0.1"
 ```
 
 ## License

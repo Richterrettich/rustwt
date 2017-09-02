@@ -320,7 +320,6 @@ fn get_current_time_seconds() -> u64 {
 /// assert_eq!(token_struct.amr()[0], "password");
 /// assert_eq!(token_struct.azp().unwrap(), "rp123");
 /// ```
-///
 pub struct IDTokenBuilder {
     payload: Payload,
     duration: u64,
@@ -472,10 +471,13 @@ mod tests {
             .to_token_structure(Algorithm::ES256);
         assert_eq!(token.audiences()[0], "rp123");
         assert_eq!(token.subject_identifier(), "user123");
-        assert_eq!(token.issued_at(), get_current_time_seconds());
-        assert_eq!(
-            token.expiration_time(),
-            get_current_time_seconds() + 60 * 20
+        assert!(
+            token.issued_at() <= get_current_time_seconds() + 1 &&
+                token.issued_at() >= get_current_time_seconds() - 1
+        );
+        assert!(
+            token.expiration_time() <= get_current_time_seconds() + 60 * 20 + 1 &&
+                token.expiration_time() >= get_current_time_seconds() + 60 * 20 - 1
         );
     }
 

@@ -23,6 +23,14 @@
  *
  */
 
+
+//! Welcome to rustwt - A battaries included JWT library for rust.
+//! # Getting started
+//!
+//! If you just want to create jwt or id tokens, use the [id_token](./id_token/index.html) module.
+//! If you want to create a custom token (with just verification), use the  [Encoder](./struct.Encoder.html)
+//! and [Decoder](./struct.Decoder.html) structs.
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -49,6 +57,9 @@ pub mod id_token;
 
 pub type Payload = BTreeMap<String, Value>;
 
+
+
+/// Struct representing a JWT Header.
 #[derive(Serialize, Deserialize)]
 pub struct Header {
     alg: Algorithm,
@@ -56,6 +67,8 @@ pub struct Header {
 }
 
 impl Header {
+    /// Create a new Header.
+    /// The typ field is always "JWT".
     pub fn new(alg: Algorithm) -> Header {
         Header {
             alg: alg,
@@ -64,6 +77,8 @@ impl Header {
     }
 }
 
+
+/// Enum representing JWT signature algorithms.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 pub enum Algorithm {
     HS256,
@@ -87,6 +102,7 @@ impl Algorithm {
     }
 }
 
+/// Enum representing Encoding/Decoding errors.
 #[derive(Debug)]
 pub enum Error {
     SignatureExpired,
@@ -133,6 +149,40 @@ impl std::fmt::Display for Error {
     }
 }
 
+
+/// Low level structure for encoding JWT.
+/// Use this struct if you want to have full control over the payload used for your JWT.
+/// In most scenarios, you are better of using [id_token](./id_token/struct.IDTokenBuilder.html) though.
+/// # Example public key signature
+///
+/// ```rust
+/// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
+/// // you can use RSA keys as well. Just adjust the algorithm.
+/// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
+/// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
+/// let mut p1 = Payload::new();
+/// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+/// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+/// p1.insert("key33".to_string(), Value::String("val3".to_string()));
+/// let encoder = Encoder::from_raw_private_key(ec_private_key, Algorithm::ES256).unwrap();
+/// let decoder = Decoder::from_pem(ec_public_key).unwrap();
+/// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+/// let maybe_res = decoder.decode(jwt1);
+/// ```
+///
+/// # Example hmac
+/// ```rust
+/// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
+/// let secret: &str = "secret123";
+/// let mut p1 = Payload::new();
+/// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+/// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+/// p1.insert("key33".to_string(), Value::String("val3".to_string()));
+/// let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
+/// let decoder = Decoder::from_hmac_secret(secret).unwrap();
+/// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+/// let maybe_res = decoder.decode(jwt1);
+/// ```
 pub struct Encoder {
     key: PKey,
     algorithm: Algorithm,
@@ -140,6 +190,8 @@ pub struct Encoder {
 
 
 impl Encoder {
+    /// Create a new Encoder from a raw private key and an Algorithm.
+    /// The private key can either be a HMAC or a PEM encoded RSA/EC key.
     pub fn from_raw_private_key<T: ?Sized + AsRef<[u8]>>(
         raw_key: &T,
         alg: Algorithm,
@@ -156,6 +208,7 @@ impl Encoder {
         })
     }
 
+    /// Create a new Encoder from a PKey struct.
     pub fn from_private_key(pkey: PKey, alg: Algorithm) -> Encoder {
         Encoder {
             key: pkey,
@@ -163,6 +216,7 @@ impl Encoder {
         }
     }
 
+    /// Encodes a payload into a JWT.
     pub fn encode(&self, payload: Payload) -> Result<String, Error> {
         let signing_input = get_signing_input(payload, &self.algorithm);
         let signature = sign_and_encode(&signing_input, &self.key, self.algorithm.get_hash())?;
@@ -174,6 +228,37 @@ impl Encoder {
 
 
 /// Basic structure for decoding JWT.
+///
+/// # Example public key signature
+///
+/// ```rust
+/// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
+/// // you can use RSA keys as well. Just adjust the algorithm.
+/// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
+/// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
+/// let mut p1 = Payload::new();
+/// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+/// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+/// p1.insert("key33".to_string(), Value::String("val3".to_string()));
+/// let encoder = Encoder::from_raw_private_key(ec_private_key, Algorithm::ES256).unwrap();
+/// let decoder = Decoder::from_pem(ec_public_key).unwrap();
+/// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+/// let maybe_res = decoder.decode(jwt1);
+/// ```
+///
+/// # Example hmac
+/// ```rust
+/// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
+/// let secret: &str = "secret123";
+/// let mut p1 = Payload::new();
+/// p1.insert("key12".to_string(), Value::String("val1".to_string()));
+/// p1.insert("key22".to_string(), Value::String("val2".to_string()));
+/// p1.insert("key33".to_string(), Value::String("val3".to_string()));
+/// let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
+/// let decoder = Decoder::from_hmac_secret(secret).unwrap();
+/// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
+/// let maybe_res = decoder.decode(jwt1);
+/// ```
 pub struct Decoder {
     key: PKey,
 }
@@ -196,37 +281,6 @@ impl Decoder {
 
     /// This function decodes a valid base64 encoded token.
     /// If the token is invalid, an appropriate error will be returned.
-    ///
-    /// # Example public key signature
-    ///
-    /// ```rust
-    /// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
-    /// // you can use RSA keys as well. Just adjust the algorithm.
-    /// let ec_private_key: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
-    /// let ec_public_key: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
-    /// let mut p1 = Payload::new();
-    /// p1.insert("key12".to_string(), Value::String("val1".to_string()));
-    /// p1.insert("key22".to_string(), Value::String("val2".to_string()));
-    /// p1.insert("key33".to_string(), Value::String("val3".to_string()));
-    /// let encoder = Encoder::from_raw_private_key(ec_private_key, Algorithm::ES256).unwrap();
-    /// let decoder = Decoder::from_pem(ec_public_key).unwrap();
-    /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
-    /// let maybe_res = decoder.decode(jwt1);
-    /// ```
-    ///
-    /// # Example hmac
-    /// ```rust
-    /// use rustwt::{Payload,Encoder,Algorithm,Decoder,Value};
-    /// let secret: &str = "secret123";
-    /// let mut p1 = Payload::new();
-    /// p1.insert("key12".to_string(), Value::String("val1".to_string()));
-    /// p1.insert("key22".to_string(), Value::String("val2".to_string()));
-    /// p1.insert("key33".to_string(), Value::String("val3".to_string()));
-    /// let encoder = Encoder::from_raw_private_key(secret, Algorithm::HS256).unwrap();
-    /// let decoder = Decoder::from_hmac_secret(secret).unwrap();
-    /// let jwt1 = encoder.encode(p1.clone()).expect("could not encode token");
-    /// let maybe_res = decoder.decode(jwt1);
-    /// ```
     pub fn decode<T: AsRef<str>>(&self, token: T) -> Result<(Header, Payload), Error> {
         match decode_segments(token.as_ref()) {
             Some((header, payload, signature, signing_input)) => {

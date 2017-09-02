@@ -2,7 +2,36 @@ use {Value, Decoder, Error, Header, Payload, Number, Encoder, Algorithm, PKey, u
 use std::time::{SystemTime, UNIX_EPOCH};
 
 
-
+/// Utility structure for decoding ID-Tokens.
+/// Use this if you want to check more than the signature.
+/// # Example
+/// ```rust
+/// use rustwt::id_token::{IDToken,IDTokenDecoder};
+/// use rustwt::Algorithm;
+/// static EC_PRIVATE_KEY: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
+/// static EC_PUBLIC_KEY: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
+/// let id_token = IDToken::build(
+///            "https://authority.example.org/auth",
+///            "user123",
+///            &["rp123"],
+///            60 * 2,
+///        ).acr("urn:mace:incommon:iap:silver")
+///            .amr(&["password"])
+///            .azp("rp123")
+///            .sign_with_pem(EC_PRIVATE_KEY, Algorithm::ES256)
+///            .expect("signing should work");
+///
+/// let id_token_decoder =
+/// IDTokenDecoder::from_pem(EC_PUBLIC_KEY, "https://authority.example.org/auth", "rp123")
+///    .expect("should not fail");
+/// let token_struct = id_token_decoder.decode(id_token).expect(
+///            "verification should not fail",
+/// );
+/// assert_eq!(token_struct.acr().unwrap(), "urn:mace:incommon:iap:silver");
+/// assert_eq!(token_struct.amr()[0], "password");
+/// assert_eq!(token_struct.azp().unwrap(), "rp123");
+/// ```
+///
 pub struct IDTokenDecoder {
     pub decoder: Decoder,
     pub valid_issuer: String,
@@ -263,6 +292,35 @@ fn get_current_time_seconds() -> u64 {
     since_the_epoch.as_secs()
 }
 
+/// Utility structure for encoding ID-Tokens.
+/// # Example
+/// ```rust
+/// use rustwt::id_token::{IDToken,IDTokenDecoder};
+/// use rustwt::Algorithm;
+/// static EC_PRIVATE_KEY: &str = include_str!("../test/ec_x9_62_prime256v1.private.key.pem");
+/// static EC_PUBLIC_KEY: &str = include_str!("../test/ec_x9_62_prime256v1.public.key.pem");
+/// let id_token = IDToken::build(
+///            "https://authority.example.org/auth",
+///            "user123",
+///            &["rp123"],
+///            60 * 2,
+///        ).acr("urn:mace:incommon:iap:silver")
+///            .amr(&["password"])
+///            .azp("rp123")
+///            .sign_with_pem(EC_PRIVATE_KEY, Algorithm::ES256)
+///            .expect("signing should work");
+///
+/// let id_token_decoder =
+/// IDTokenDecoder::from_pem(EC_PUBLIC_KEY, "https://authority.example.org/auth", "rp123")
+///    .expect("should not fail");
+/// let token_struct = id_token_decoder.decode(id_token).expect(
+///            "verification should not fail",
+/// );
+/// assert_eq!(token_struct.acr().unwrap(), "urn:mace:incommon:iap:silver");
+/// assert_eq!(token_struct.amr()[0], "password");
+/// assert_eq!(token_struct.azp().unwrap(), "rp123");
+/// ```
+///
 pub struct IDTokenBuilder {
     payload: Payload,
     duration: u64,

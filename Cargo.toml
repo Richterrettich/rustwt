@@ -6,7 +6,7 @@ license = "Apache-2.0"
 
 homepage = "https://github.com/Richterrettich/rustwt"
 repository = "https://github.com/Richterrettich/rustwt"
-documentation = "https://github.com/Richterrettich/rustwt"
+documentation = "https://docs.rs/rustwt/"
 
 description = "Implementation of JSON JWT"
 keywords = ["jwt", "json", "token", "encryption", "auth0-jwt"]

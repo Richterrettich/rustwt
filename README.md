@@ -1,6 +1,7 @@
 Rustwt
 ================================================
 [![Build Status](https://travis-ci.org/Richterrettich/rustwt.svg?branch=master)](https://travis-ci.org/Richterrettich/rustwt)
+[![Documentation Status](https://docs.rs/rustwt/badge.svg)](https://docs.rs/rustwt/)
 
 This is a hard fork of https://github.com/GildedHonour/frank_jwt
 

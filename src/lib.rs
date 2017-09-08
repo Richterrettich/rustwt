@@ -63,7 +63,7 @@ pub type Payload = BTreeMap<String, Value>;
 #[derive(Serialize, Deserialize)]
 pub struct Header {
     alg: Algorithm,
-    typ: String,
+    typ: Option<String>,
 }
 
 impl Header {
@@ -72,7 +72,7 @@ impl Header {
     pub fn new(alg: Algorithm) -> Header {
         Header {
             alg: alg,
-            typ: String::from("JWT"),
+            typ: Some(String::from("JWT")),
         }
     }
 }
